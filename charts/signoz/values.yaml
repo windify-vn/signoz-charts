@@ -773,7 +773,7 @@ signoz:
     repository: signoz/signoz
     # signoz.image.tag - The container image tag.
     # @default -- "v0.90.1"
-    tag: v0.96.1
+    tag: v0.99.0
     # signoz.image.pullPolicy - The image pull policy.
     # @default -- "IfNotPresent"
     pullPolicy: IfNotPresent
@@ -870,7 +870,7 @@ signoz:
     # For more details see: https://signoz.io/docs/manage/administrator-guide/configuration/alertmanager/
     signoz_alertmanager_provider: signoz
     # The URL under which Alertmanager is externally reachable, Used for generating relative and absolute links back to Alertmanager itself.
-    signoz_alertmanager_signoz_external_url: http://localhost:8080
+    signoz_alertmanager_signoz_external__url: http://localhost:8080
   # signoz.initContainers -- Init containers for the SigNoz pod.
   # @section -- SigNoz
   # @default -- "Please checkout the default values in values.yml"
@@ -1088,7 +1088,7 @@ schemaMigrator:
     repository: signoz/signoz-schema-migrator
     # schemaMigrator.image.tag - The container image tag.
     # @default -- "v0.128.2"
-    tag: v0.129.6
+    tag: v0.129.8
     # schemaMigrator.image.pullPolicy - The image pull policy.
     # @default -- "IfNotPresent"
     pullPolicy: IfNotPresent
@@ -1298,7 +1298,7 @@ otelCollector:
     repository: signoz/signoz-otel-collector
     # otelCollector.image.tag - The container image tag.
     # @default -- "v0.128.2"
-    tag: v0.129.6
+    tag: v0.129.8
     # otelCollector.image.pullPolicy - The image pull policy.
     # @default -- "IfNotPresent"
     pullPolicy: IfNotPresent
@@ -1952,6 +1952,13 @@ otelCollector:
           receivers: [signozmeter]
           processors: [batch/meter]
           exporters: [signozclickhousemeter]
+# @section -- Postgres
+postgresql:
+  # postgresql.enabled -- Enable or disable the PostgreSQL for signoz.
+  # For more details, check out the postgresql chart: https://github.com/SigNoz/charts/tree/main/charts/postgresql
+  # @default -- false
+  # @section -- Postgres
+  enabled: false
 # -- This component is configurable with licensed version of SigNoz.
 # @section -- Otel Gateway Settings
 signoz-otel-gateway:
@@ -1963,180 +1970,180 @@ signoz-otel-gateway:
     requests:
       cpu: 2500m
       memory: 2500Mi
-  # @ignored
-  config:
-    exporters:
-      signozkafka:
-        brokers:
-        # replace with the correct address based on the release name
-        # - redpanda-0.redpanda.redpanda.svc.cluster.local:9093
-        # - redpanda-1.redpanda.redpanda.svc.cluster.local:9093
-        # - redpanda-2.redpanda.redpanda.svc.cluster.local:9093
-        producer:
-          compression: lz4
-          max_message_bytes: 209715200
-        protocol_version: 2.0.0
-    extensions:
-      health_check:
-        endpoint: 0.0.0.0:13133
-        path: /healthz
-      signozadminapi:
-        cache:
-          extension: signozcache
-        endpoint: 0.0.0.0:8001
-        limiter:
-          policy: postgres
-        storage:
-          extension: signozstorage
-      signozcache:
-        strategy: ${env:OTELGATEWAY_CACHE_STRATEGY}
-        uri:
-          database: ${env:OTELGATEWAY_REDIS_DATABASE}
-          host: ${env:OTELGATEWAY_REDIS_HOST}
-          port: ${env:OTELGATEWAY_REDIS_PORT}
-      signozkeyauth:
-        cache:
-          extension: signozcache
-        headers:
-          - signoz-access-token
-          - authorization
-          - signoz-ingestion-key
-          - x-amz-firehose-access-key
-        storage:
-          extension: signozstorage
-      signozstorage:
-        strategy: ${env:OTELGATEWAY_STORAGE_STRATEGY}
-        uri:
-          database: ${env:OTELGATEWAY_POSTGRES_DATABASE}
-          host: ${env:OTELGATEWAY_POSTGRES_HOST}
-          password: ${env:OTELGATEWAY_POSTGRES_PASSWORD}
-          port: ${env:OTELGATEWAY_POSTGRES_PORT}
-          user: ${env:OTELGATEWAY_POSTGRES_USER}
-      zpages:
-        endpoint: :55679
-    processors:
-      batch:
-        metadata_keys:
-          - signoz-workspace-name
-        send_batch_max_size: 25000
-        send_batch_size: 20000
-        timeout: 10s
-      signozlimiter/postgres:
-        cache:
-          extension: signozcache
-        policy: postgres
-        storage:
-          extension: signozstorage
-    receivers:
-      otlp:
-        protocols:
-          grpc:
-            auth:
-              authenticator: signozkeyauth
-            endpoint: 0.0.0.0:4317
-            max_recv_msg_size_mib: 16
-          http:
-            auth:
-              authenticator: signozkeyauth
-            cors:
-              allowed_origins:
-                - '*'
-            endpoint: 0.0.0.0:4318
-      signozhttplog/heroku:
-        auth:
-          authenticator: signozkeyauth
-        endpoint: 0.0.0.0:8081
-        source: heroku
-      signozhttplog/json:
-        auth:
-          authenticator: signozkeyauth
-        endpoint: 0.0.0.0:8082
-        source: json
-      signozawsfirehose/cwmetrics:
-        auth:
-          authenticator: signozkeyauth
-        endpoint: 0.0.0.0:8084
-        record_type: cwmetrics
-      signozawsfirehose/cwlogs:
-        auth:
-          authenticator: signozkeyauth
-        endpoint: 0.0.0.0:8085
-        record_type: cwlogs
-      signozawsfirehose/otlp_v1:
-        auth:
-          authenticator: signozkeyauth
-        endpoint: 0.0.0.0:8086
-        record_type: otlp_v1
-    service:
-      extensions:
-        - signozstorage
-        - signozcache
-        - zpages
-        - signozkeyauth
-        - health_check
-        - signozadminapi
-      pipelines:
-        logs:
-          exporters:
-            - signozkafka
-          processors:
-            # replace with signozlimiter/redis if redis is used as cache backend
-            - signozlimiter/postgres
-            - batch
-          receivers:
-            - otlp
-            - signozhttplog/heroku
-            - signozhttplog/json
-            - signozawsfirehose/cwlogs
-        metrics:
-          exporters:
-            - signozkafka
-          processors:
-            # replace with signozlimiter/redis if redis is used as cache backend
-            - signozlimiter/postgres
-            - batch
-          receivers:
-            - otlp
-            - signozawsfirehose/cwmetrics
-            - signozawsfirehose/otlp_v1
-        traces:
-          exporters:
-            - signozkafka
-          processors:
-            # replace with signozlimiter/redis if redis is used as cache backend
-            - signozlimiter/postgres
-            - batch
-          receivers:
-            - otlp
+      # @ignored
+      # config:
+    # exporters:
+    #   signozkafka:
+    #     brokers:
+    #     # replace with the correct address based on the release name
+    #     # - redpanda-0.redpanda.redpanda.svc.cluster.local:9093
+    #     # - redpanda-1.redpanda.redpanda.svc.cluster.local:9093
+    #     # - redpanda-2.redpanda.redpanda.svc.cluster.local:9093
+    #     producer:
+    #       compression: lz4
+    #       max_message_bytes: 209715200
+    #     protocol_version: 2.0.0
+    # extensions:
+    #   health_check:
+    #     endpoint: 0.0.0.0:13133
+    #     path: /healthz
+    #   signozadminapi:
+    #     cache:
+    #       extension: signozcache
+    #     endpoint: 0.0.0.0:8001
+    #     limiter:
+    #       policy: postgres
+    #     storage:
+    #       extension: signozstorage
+    #   signozcache:
+    #     strategy: ${env:OTELGATEWAY_CACHE_STRATEGY}
+    #     uri:
+    #       database: ${env:OTELGATEWAY_REDIS_DATABASE}
+    #       host: ${env:OTELGATEWAY_REDIS_HOST}
+    #       port: ${env:OTELGATEWAY_REDIS_PORT}
+    #   signozkeyauth:
+    #     cache:
+    #       extension: signozcache
+    #     headers:
+    #       - signoz-access-token
+    #       - authorization
+    #       - signoz-ingestion-key
+    #       - x-amz-firehose-access-key
+    #     storage:
+    #       extension: signozstorage
+    #   signozstorage:
+    #     strategy: ${env:OTELGATEWAY_STORAGE_STRATEGY}
+    #     uri:
+    #       database: ${env:OTELGATEWAY_POSTGRES_DATABASE}
+    #       host: ${env:OTELGATEWAY_POSTGRES_HOST}
+    #       password: ${env:OTELGATEWAY_POSTGRES_PASSWORD}
+    #       port: ${env:OTELGATEWAY_POSTGRES_PORT}
+    #       user: ${env:OTELGATEWAY_POSTGRES_USER}
+    #   zpages:
+    #     endpoint: :55679
+    # processors:
+    #   batch:
+    #     metadata_keys:
+    #       - signoz-workspace-name
+    #     send_batch_max_size: 25000
+    #     send_batch_size: 20000
+    #     timeout: 10s
+    #   signozlimiter/postgres:
+    #     cache:
+    #       extension: signozcache
+    #     policy: postgres
+    #     storage:
+    #       extension: signozstorage
+    # receivers:
+    #   otlp:
+    #     protocols:
+    #       grpc:
+    #         auth:
+    #           authenticator: signozkeyauth
+    #         endpoint: 0.0.0.0:4317
+    #         max_recv_msg_size_mib: 16
+    #       http:
+    #         auth:
+    #           authenticator: signozkeyauth
+    #         cors:
+    #           allowed_origins:
+    #             - '*'
+    #         endpoint: 0.0.0.0:4318
+    #   signozhttplog/heroku:
+    #     auth:
+    #       authenticator: signozkeyauth
+    #     endpoint: 0.0.0.0:8081
+    #     source: heroku
+    #   signozhttplog/json:
+    #     auth:
+    #       authenticator: signozkeyauth
+    #     endpoint: 0.0.0.0:8082
+    #     source: json
+    #   signozawsfirehose/cwmetrics:
+    #     auth:
+    #       authenticator: signozkeyauth
+    #     endpoint: 0.0.0.0:8084
+    #     record_type: cwmetrics
+    #   signozawsfirehose/cwlogs:
+    #     auth:
+    #       authenticator: signozkeyauth
+    #     endpoint: 0.0.0.0:8085
+    #     record_type: cwlogs
+    #   signozawsfirehose/otlp_v1:
+    #     auth:
+    #       authenticator: signozkeyauth
+    #     endpoint: 0.0.0.0:8086
+    #     record_type: otlp_v1
+    # service:
+    #   extensions:
+    #     - signozstorage
+    #     - signozcache
+    #     - zpages
+    #     - signozkeyauth
+    #     - health_check
+    #     - signozadminapi
+    #   pipelines:
+    #     logs:
+    #       exporters:
+    #         - signozkafka
+    #       processors:
+    #         # replace with signozlimiter/redis if redis is used as cache backend
+    #         - signozlimiter/postgres
+    #         - batch
+    #       receivers:
+    #         - otlp
+    #         - signozhttplog/heroku
+    #         - signozhttplog/json
+    #         - signozawsfirehose/cwlogs
+    #     metrics:
+    #       exporters:
+    #         - signozkafka
+    #       processors:
+    #         # replace with signozlimiter/redis if redis is used as cache backend
+    #         - signozlimiter/postgres
+    #         - batch
+    #       receivers:
+    #         - otlp
+    #         - signozawsfirehose/cwmetrics
+    #         - signozawsfirehose/otlp_v1
+    #     traces:
+    #       exporters:
+    #         - signozkafka
+    #       processors:
+    #         # replace with signozlimiter/redis if redis is used as cache backend
+    #         - signozlimiter/postgres
+    #         - batch
+    #       receivers:
+    #         - otlp
   # @ignored
   env:
     cache_strategy: "off"
-    postgres_database:
-      valueFrom:
-        secretKeyRef:
-          key: database
-          name: postgres-secret-otelgateway
-    postgres_host:
-      valueFrom:
-        secretKeyRef:
-          key: host
-          name: postgres-secret-otelgateway
-    postgres_password:
-      valueFrom:
-        secretKeyRef:
-          key: password
-          name: postgres-secret-otelgateway
-    postgres_port:
-      valueFrom:
-        secretKeyRef:
-          key: port
-          name: postgres-secret-otelgateway
-    postgres_user:
-      valueFrom:
-        secretKeyRef:
-          key: username
-          name: postgres-secret-otelgateway
     storage_strategy: postgres
+    # postgres_database:
+    #   valueFrom:
+    #     secretKeyRef:
+    #       key: database
+    #       name: postgres-secret-otelgateway
+    # postgres_host:
+    #   valueFrom:
+    #     secretKeyRef:
+    #       key: host
+    #       name: postgres-secret-otelgateway
+    # postgres_password:
+    #   valueFrom:
+    #     secretKeyRef:
+    #       key: password
+    #       name: postgres-secret-otelgateway
+    # postgres_port:
+    #   valueFrom:
+    #     secretKeyRef:
+    #       key: port
+    #       name: postgres-secret-otelgateway
+    # postgres_user:
+    #   valueFrom:
+    #     secretKeyRef:
+    #       key: username
+    #       name: postgres-secret-otelgateway
   # @ignored
   fullnameOverride: opentelemetry-gateway
   # @ignored
